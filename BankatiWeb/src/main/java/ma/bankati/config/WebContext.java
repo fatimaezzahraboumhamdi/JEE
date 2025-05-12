@@ -7,9 +7,11 @@ import jakarta.servlet.annotation.WebListener;
 import jakarta.servlet.annotation.WebServlet;
 import java.util.Enumeration;
 import java.util.Properties;
+import ma.bankati.dao.creditDao.ICreditDao;
 import ma.bankati.dao.dataDao.IDao;
 import ma.bankati.dao.userDao.IUserDao;
 import ma.bankati.service.authentification.IAuthentificationService;
+import ma.bankati.service.creditService.ICreditService;
 import ma.bankati.service.moneyServices.IMoneyService;
 
 @WebListener
@@ -27,6 +29,8 @@ public class WebContext implements ServletContextListener {
                 String moneyServClassName = properties.getProperty("moneyService");
                 String userDaoClassName = properties.getProperty("userDao");
                 String authServClassName = properties.getProperty("authService");
+                String creditDaoClassName = properties.getProperty("creditDao");
+                String creditServClassName = properties.getProperty("creditService");
 
                 Class<?> cDataDao = Class.forName(dataDaoClassName);
                 IDao dataDao = (IDao) cDataDao.getDeclaredConstructor().newInstance();
@@ -41,12 +45,21 @@ public class WebContext implements ServletContextListener {
                 Class<?> cAuthService = Class.forName(authServClassName);
                 IAuthentificationService authService = (IAuthentificationService) cAuthService.getDeclaredConstructor(IUserDao.class).newInstance(userDao);
 
+                // Initialisation du DAO de crédit
+                Class<?> cCreditDao = Class.forName(creditDaoClassName);
+                ICreditDao creditDao = (ICreditDao) cCreditDao.getDeclaredConstructor().newInstance();
+
+                // Initialisation du service de crédit
+                Class<?> cCreditService = Class.forName(creditServClassName);
+                ICreditService creditService = (ICreditService) cCreditService.getDeclaredConstructor(ICreditDao.class).newInstance(creditDao);
 
                 // Enregistrement des beans aussi avec des noms explicites
-               application.setAttribute("dataDao", dataDao);
-               application.setAttribute("moneyService", moneyService);
-               application.setAttribute("userDao", userDao);
-               application.setAttribute("authService", authService);
+                application.setAttribute("dataDao", dataDao);
+                application.setAttribute("moneyService", moneyService);
+                application.setAttribute("userDao", userDao);
+                application.setAttribute("authService", authService);
+                application.setAttribute("creditDao", creditDao);
+                application.setAttribute("creditService", creditService);
 
 
             } catch (Exception e) {
