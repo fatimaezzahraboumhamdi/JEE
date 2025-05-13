@@ -1,4 +1,3 @@
-
 package ma.bankati.web.controllers.creditController;
 
 import jakarta.servlet.ServletException;
@@ -7,15 +6,13 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.List;
+import java.time.LocalDate;
 import ma.bankati.model.credit.CreditRequest;
+import ma.bankati.model.credit.CreditRequest.CreditStatus;
 import ma.bankati.model.users.User;
 import ma.bankati.service.creditService.ICreditService;
 
-/**
- * Contrôleur pour les clients leur permettant de gérer leurs demandes de crédit
- */
-@WebServlet(urlPatterns = {"/client/credits/*"}, loadOnStartup = 5)
+@WebServlet(urlPatterns = "/client/credit/*", loadOnStartup = 5)
 public class ClientCreditController extends HttpServlet {
 
     private ICreditService creditService;
@@ -27,95 +24,101 @@ public class ClientCreditController extends HttpServlet {
     }
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        String pathInfo = req.getPathInfo();
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
 
-        // Récupération de l'utilisateur connecté
-        User user = (User) req.getSession().getAttribute("connectedUser");
+        User connectedUser = (User) request.getSession().getAttribute("connectedUser");
+        if (connectedUser == null) {
+            response.sendRedirect(request.getContextPath() + "/login");
+            return;
+        }
 
+        String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/") || pathInfo.equals("/list")) {
-            // Liste des demandes de crédit du client
-            showClientCredits(req, resp, user);
+            showClientCredits(request, response, connectedUser);
         } else if (pathInfo.equals("/new")) {
-            // Formulaire de nouvelle demande
-            newCreditForm(req, resp);
-        } else if (pathInfo.equals("/delete")) {
-            // Suppression d'une demande
-            deleteCreditRequest(req, resp, user);
+            showNewCreditForm(request, response);
+        } else if (pathInfo.equals("/details")) {
+            showCreditDetails(request, response, connectedUser);
         } else {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+            response.sendRedirect(request.getContextPath() + "/client/credit/list");
         }
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        String pathInfo = req.getPathInfo();
-        User user = (User) req.getSession().getAttribute("connectedUser");
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
 
+        User connectedUser = (User) request.getSession().getAttribute("connectedUser");
+        if (connectedUser == null) {
+            response.sendRedirect(request.getContextPath() + "/login");
+            return;
+        }
+
+        String pathInfo = request.getPathInfo();
         if (pathInfo.equals("/save")) {
-            // Création d'une nouvelle demande
-            saveCreditRequest(req, resp, user);
+            saveNewCreditRequest(request, response, connectedUser);
         } else {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+            response.sendRedirect(request.getContextPath() + "/client/credit/list");
         }
     }
 
-    private void showClientCredits(HttpServletRequest req, HttpServletResponse resp, User user) throws ServletException, IOException {
-        List<CreditRequest> credits = creditService.getCreditRequestsByClient(user.getId());
-        req.setAttribute("credits", credits);
-        req.getRequestDispatcher("/public/credits/list.jsp").forward(req, resp);
+    private void showClientCredits(HttpServletRequest request, HttpServletResponse response, User connectedUser)
+            throws ServletException, IOException {
+        var creditRequests = creditService.getCreditRequestsByClient(connectedUser.getId());
+        request.setAttribute("creditRequests", creditRequests);
+        request.getRequestDispatcher("/public/credits/list.jsp").forward(request, response);
     }
 
-    private void newCreditForm(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        req.getRequestDispatcher("/public/credits/creditForm.jsp").forward(req, resp);
+    private void showNewCreditForm(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        request.getRequestDispatcher("/public/credits/form.jsp").forward(request, response);
     }
 
-    private void saveCreditRequest(HttpServletRequest req, HttpServletResponse resp, User user) throws IOException {
-        try {
-            Double amount = Double.parseDouble(req.getParameter("amount"));
-            Integer duration = Integer.parseInt(req.getParameter("duration"));
-            String description = req.getParameter("description");
+    private void showCreditDetails(HttpServletRequest request, HttpServletResponse response, User connectedUser)
+            throws ServletException, IOException {
+        String idStr = request.getParameter("id");
+        if (idStr != null && !idStr.isEmpty()) {
+            Long id = Long.parseLong(idStr);
+            CreditRequest creditRequest = creditService.getCreditRequestById(id);
 
-            CreditRequest creditRequest = new CreditRequest();
-            creditRequest.setClientId(user.getId());
-            creditRequest.setAmount(amount);
-            creditRequest.setDuration(duration);
-            creditRequest.setDescription(description);
-
-            creditService.createCreditRequest(creditRequest);
-
-            resp.sendRedirect(req.getContextPath() + "/client/credits/list");
-        } catch (NumberFormatException e) {
-            req.setAttribute("error", "Veuillez vérifier les valeurs saisies.");
-            req.getRequestDispatcher("/public/credits/creditForm.jsp").forward(req, resp);
-        } catch (Exception e) {
-            req.setAttribute("error", "Une erreur est survenue lors de la création de la demande.");
-            req.getRequestDispatcher("/public/credits/creditForm.jsp").forward(req, resp);
-        }
-    }
-
-    private void deleteCreditRequest(HttpServletRequest req, HttpServletResponse resp, User user) throws IOException, ServletException {
-        try {
-            Long creditId = Long.parseLong(req.getParameter("id"));
-
-            // Vérifier que la demande appartient bien au client
-            CreditRequest credit = creditService.getCreditRequestById(creditId);
-            if (credit != null && credit.getClientId().equals(user.getId())) {
-                boolean deleted = creditService.deleteCreditRequest(creditId);
-
-                if (deleted) {
-                    req.getSession().setAttribute("successMessage", "Demande supprimée avec succès");
-                } else {
-                    req.getSession().setAttribute("errorMessage", "Impossible de supprimer une demande déjà traitée");
-                }
-            } else {
-                req.getSession().setAttribute("errorMessage", "Demande introuvable ou accès non autorisé");
+            // Vérifier si la demande appartient bien à l'utilisateur connecté
+            if (creditRequest != null && creditRequest.getClientId().equals(connectedUser.getId())) {
+                request.setAttribute("creditRequest", creditRequest);
+                request.getRequestDispatcher("/public/credits/details.jsp").forward(request, response);
+                return;
             }
+        }
+        // Redirection si la demande n'existe pas ou n'appartient pas à l'utilisateur
+        response.sendRedirect(request.getContextPath() + "/client/credit/list");
+    }
 
-            resp.sendRedirect(req.getContextPath() + "/client/credits/list");
+    private void saveNewCreditRequest(HttpServletRequest request, HttpServletResponse response, User connectedUser)
+            throws ServletException, IOException {
+        try {
+            Double amount = Double.parseDouble(request.getParameter("amount"));
+            Integer duration = Integer.parseInt(request.getParameter("duration"));
+            String description = request.getParameter("description");
+
+            // Créer la demande de crédit
+            CreditRequest newCredit = CreditRequest.builder()
+                    .clientId(connectedUser.getId())
+                    .amount(amount)
+                    .duration(duration)
+                    .description(description)
+                    .requestDate(LocalDate.now())
+                    .status(CreditStatus.PENDING)
+                    .build();
+
+            // Enregistrer la demande
+            creditService.createCreditRequest(newCredit);
+
+            // Message de succès et redirection
+            request.getSession().setAttribute("successMessage", "Votre demande de crédit a été soumise avec succès.");
+            response.sendRedirect(request.getContextPath() + "/client/credit/list");
         } catch (NumberFormatException e) {
-            req.getSession().setAttribute("errorMessage", "Identifiant de demande invalide");
-            resp.sendRedirect(req.getContextPath() + "/client/credits/list");
+            request.setAttribute("errorMessage", "Veuillez saisir des valeurs numériques valides.");
+            request.getRequestDispatcher("/public/credits/form.jsp").forward(request, response);
         }
     }
 

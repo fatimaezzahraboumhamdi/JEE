@@ -22,13 +22,31 @@ public class CreditServiceImpl implements ICreditService {
     }
 
     @Override
+    public CreditRequest saveRequest(CreditRequest creditRequest) {
+        // Alias pour createCreditRequest pour maintenir la compatibilité
+        return createCreditRequest(creditRequest);
+    }
+
+    @Override
     public List<CreditRequest> getAllCreditRequests() {
         return creditDao.findAll();
     }
 
     @Override
+    public List<CreditRequest> findAll() {
+        // Alias pour getAllCreditRequests
+        return getAllCreditRequests();
+    }
+
+    @Override
     public List<CreditRequest> getCreditRequestsByClient(Long clientId) {
         return creditDao.findByClientId(clientId);
+    }
+
+    @Override
+    public List<CreditRequest> findByClientId(Long clientId) {
+        // Alias pour getCreditRequestsByClient
+        return getCreditRequestsByClient(clientId);
     }
 
     @Override
@@ -42,13 +60,44 @@ public class CreditServiceImpl implements ICreditService {
     }
 
     @Override
+    public CreditRequest findById(Long creditId) {
+        // Alias pour getCreditRequestById
+        return getCreditRequestById(creditId);
+    }
+
+    @Override
+    public List<CreditRequest> findByStatus(CreditStatus status) {
+        return creditDao.findByStatus(status);
+    }
+
+    @Override
+    public List<CreditRequest> getCreditRequestsByStatus(CreditStatus status) {
+        // Alias pour findByStatus
+        return findByStatus(status);
+    }
+
+    @Override
     public void approveCreditRequest(Long creditId) {
         creditDao.updateStatus(creditId, CreditStatus.APPROVED);
     }
 
     @Override
+    public void approveCreditRequest(Long creditId, String reason) {
+        // Pour l'instant, on ignore la raison et on appelle la méthode principale
+        // Dans une implémentation future, on pourrait stocker cette raison
+        approveCreditRequest(creditId);
+    }
+
+    @Override
     public void rejectCreditRequest(Long creditId) {
         creditDao.updateStatus(creditId, CreditStatus.REJECTED);
+    }
+
+    @Override
+    public void rejectCreditRequest(Long creditId, String reason) {
+        // Pour l'instant, on ignore la raison et on appelle la méthode principale
+        // Dans une implémentation future, on pourrait stocker cette raison
+        rejectCreditRequest(creditId);
     }
 
     @Override
